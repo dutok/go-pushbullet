@@ -1,8 +1,8 @@
 package main
 
 import (
-    "fmt"
-    "encoding/json"
+	"encoding/json"
+	"fmt"
 )
 
 type Me struct {
@@ -24,14 +24,14 @@ type Me struct {
 }
 
 func getMe() (Me, error) {
-    me := Me{}
-    respbytes, err := request("GET", "users/me", "")
-    if err != nil {
-        return me, err
-    }
-    err = json.Unmarshal(respbytes, &me)
-    if err != nil {
-        fmt.Println(err)
-    }
-    return me, nil
+	me := Me{}
+	respbytes, err := request("GET", "users/me", "")
+	if err != nil {
+		return me, err
+	}
+	err = json.Unmarshal(respbytes, &me)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return me, nil
 }
