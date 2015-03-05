@@ -30,7 +30,7 @@ type Pushes struct {
 
 func main() {
     key = os.Getenv("pbkey")
-    push, err := pushList("Test list", []string{"apple", "peach", "pear"}, "", "", "")
+    /*push, err := pushList("Test list", []string{"apple", "peach", "pear"}, "", "", "")
     if err != nil {
         fmt.Println(err)
     } else {
@@ -47,10 +47,15 @@ func main() {
         fmt.Println(err)
     } else {
         fmt.Println(push)
+    }*/
+    pushes, err := getPushes(0, true, 0)
+    if err != nil {
+        fmt.Println(err)
     }
+    pushes.delete()
 }
 
-func (push Push) delete() (Push, error) {
+func (push *Push) delete() (*Push, error) {
     url := "pushes"
     url += "/" + push.Iden
     respbytes, err := request("DELETE", url, "")
@@ -58,9 +63,20 @@ func (push Push) delete() (Push, error) {
         return push, err
     }
     if string(respbytes) == "{}" {
-        push = Push{}
+        *push = Push{}
     }
     return push, nil
+}
+
+func (pushes *Pushes) delete() (*Pushes, error) {
+    respbytes, err := request("DELETE", "pushes", "")
+    if err != nil {
+        return pushes, err
+    }
+    if string(respbytes) == "{}" {
+        *pushes = Pushes{}
+    }
+    return pushes, nil
 }
 
 func getPushes(after int, active bool, cursor int) (Pushes, error) {
