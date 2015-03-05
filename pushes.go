@@ -1,10 +1,10 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"strconv"
+    "os"
+    "fmt"
+    "encoding/json"
+    "strconv"
 )
 
 type Push struct {
@@ -29,82 +29,161 @@ type Pushes struct {
 }
 
 func main() {
-	key = os.Getenv("pbkey")
-	push, err := newNote("Test", "Test body", "channel_tag", "go", "")
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(push)
-	}
-	pushes, err := getPushes(1, true, 0)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(pushes)
-	}
+    key = os.Getenv("pbkey")
+    push, err := pushList("Test list", []string{"apple", "peach", "pear"}, "", "", "")
+    if err != nil {
+        fmt.Println(err)
+    } else {
+        fmt.Println(push)
+    }
+    push, err = pushLink("Test link", "Test link body", "http://google.com", "", "", "")
+    if err != nil {
+        fmt.Println(err)
+    } else {
+        fmt.Println(push)
+    }
+    push, err = pushNote("Test note", "Test note body", "", "", "")
+    if err != nil {
+        fmt.Println(err)
+    } else {
+        fmt.Println(push)
+    }
+}
+
+func (push Push) delete() (Push, error) {
+    url := "pushes"
+    url += "/" + push.Iden
+    respbytes, err := request("DELETE", url, "")
+    if err != nil {
+        return push, err
+    }
+    if string(respbytes) == "{}" {
+        push = Push{}
+    }
+    return push, nil
 }
 
 func getPushes(after int, active bool, cursor int) (Pushes, error) {
-	pushes := Pushes{}
-	url := "pushes?modified_after=" + strconv.Itoa(after)
-	if active {
-		url += "&active=true"
-	}
-	if cursor != 0 {
-		url += "&cursor=" + strconv.Itoa(cursor)
-	}
-	respbytes, err := request("GET", url, "")
-	if err != nil {
-		return pushes, err
-	}
-	err = json.Unmarshal(respbytes, &pushes)
+    pushes := Pushes{}
+    url := "pushes?modified_after=" + strconv.Itoa(after)
+    if active { url += "&active=true" }
+    if cursor != 0 { url += "&cursor=" + strconv.Itoa(cursor) }
+    respbytes, err := request("GET", url, "")
+    if err != nil {
+        return pushes, err
+    }
+    err = json.Unmarshal(respbytes, &pushes)
+    if err != nil {
+        fmt.Println(err)
+    }
+    return pushes, nil
+}
+
+func newPush(jsonBytes []byte) (Push, error) {
+    push := Push{}
+    respbytes, err := request("POST", "pushes", string(jsonBytes))
+    if err != nil {
+        return push, err
+    }
+    err = json.Unmarshal(respbytes, &push)
+    if err != nil {
+        fmt.Println(err)
+    }
+    return push, nil
+}
+
+func pushNote(title, body, targettype, targetvalue, sourceiden string) (Push, error) {
+    target := loadTarget(targettype, targetvalue)
+    req := PushReq{
+        Type: "note",
+        Target: target,
+        SourceIden: sourceiden,
+    }
+    note := Note{
+        PushReq: req,
+        Title: title,
+        Body: body,
+    }
+    json, err := json.Marshal(note)
 	if err != nil {
 		fmt.Println(err)
 	}
-	return pushes, nil
+    push, err := newPush(json)
+    if err != nil {
+        return push, err
+    }
+    return push, nil
 }
 
-func newPush(pushtype, title, url, filename, filetype, fileurl, body, targettype, target, sourceiden string) (Push, error) {
-	push := Push{}
-	jsonStr := ""
-	if pushtype == "note" {
-		jsonStr = `{"type": "note", "title": "` + title + `", "body": "` + body + `", "` + targettype + `": "` + target + `", "source_device_iden": "` + sourceiden + `"}`
-	} else if pushtype == "link" {
-		jsonStr = `{"type": "link", "title": "` + title + `", "body": "` + body + `", "url": "` + url + `", "` + targettype + `": "` + target + `", "source_device_iden": "` + sourceiden + `"}`
-	} else {
-		jsonStr = `{"type": "file", "file_name": "` + filename + `", "file_type": "` + filetype + `", "file_url": "` + fileurl + `", "body": "` + body + `", "` + targettype + `": "` + target + `", "source_device_iden": "` + sourceiden + `"}`
-	}
-	respbytes, err := request("POST", "pushes", jsonStr)
-	if err != nil {
-		return push, err
-	}
-	err = json.Unmarshal(respbytes, &push)
+func pushLink(title, body, url, targettype, targetvalue, sourceiden string) (Push, error) {
+    target := loadTarget(targettype, targetvalue)
+    req := PushReq{
+        Type: "link",
+        Target: target,
+        SourceIden: sourceiden,
+    }
+    link := Link{
+        PushReq: req,
+        Title: title,
+        Body: body,
+        Url: url,
+    }
+    json, err := json.Marshal(link)
 	if err != nil {
 		fmt.Println(err)
 	}
-	return push, nil
+    push, err := newPush(json)
+    if err != nil {
+        return push, err
+    }
+    return push, nil
 }
 
-func newNote(title, body, targettype, target, sourceiden string) (Push, error) {
-	push, err := newPush("note", title, "", "", "", "", body, targettype, target, sourceiden)
+func pushFile(filename, filetype, fileurl, body, targettype, targetvalue, sourceiden string) (Push, error) {
+    target := loadTarget(targettype, targetvalue)
+    req := PushReq{
+        Type: "file",
+        Target: target,
+        SourceIden: sourceiden,
+    }
+    file := File{
+        PushReq: req,
+        FileName: filename,
+        FileType: filetype,
+        FileUrl: fileurl,
+        Body: body,
+    }
+    json, err := json.Marshal(file)
 	if err != nil {
-		return push, err
+		fmt.Println(err)
 	}
-	return push, nil
+    push, err := newPush(json)
+    if err != nil {
+        return push, err
+    }
+    return push, nil
 }
 
-func newLink(title, body, url, targettype, target, sourceiden string) (Push, error) {
-	push, err := newPush("link", title, url, "", "", "", body, targettype, target, sourceiden)
+func pushList(title string, items []string, targettype, targetvalue, sourceiden string) (Push, error) {
+    target := loadTarget(targettype, targetvalue)
+    req := PushReq{
+        Type: "list",
+        Target: target,
+        SourceIden: sourceiden,
+    }
+    list := List{
+        PushReq: req,
+        Title: title,
+        Items: items,
+    }
+    json, err := json.Marshal(list)
+    fmt.Println(string(json))
 	if err != nil {
-		return push, err
+		fmt.Println(err)
 	}
-	return push, nil
-}
-
-func newFile(title, filename, filetype, fileurl, body, targettype, target, sourceiden string) (Push, error) {
-	push, err := newPush("file", title, "", filename, filetype, fileurl, body, targettype, target, sourceiden)
-	if err != nil {
-		return push, err
-	}
-	return push, nil
+    push, err := newPush(json)
+    if err != nil {
+        return push, err
+    }
+    return push, nil
 }
